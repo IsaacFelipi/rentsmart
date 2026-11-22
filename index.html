@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RentSmart · R.M Imóveis</title>
+<style>
+:root{--ink:#10232e;--mut:#5b6b75;--bg:#eef3f4;--card:#fff;--line:#d5dfe3;--acc:#0b6b73;--acc2:#e9b44c}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Trebuchet MS",system-ui,sans-serif}
+header{background:var(--ink);color:#fff;padding:28px 20px}
+header h1{margin:0;font:700 2rem Georgia,serif;letter-spacing:.5px}
+header p{margin:4px 0 0;color:#b9c8cf}
+main{max-width:1000px;margin:0 auto;padding:20px;display:grid;gap:20px;grid-template-columns:340px 1fr}
+@media(max-width:800px){main{grid-template-columns:1fr}}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:20px}
+h2{margin:0 0 12px;font:700 1.2rem Georgia,serif}
+label{display:block;margin:12px 0 4px;font-weight:600}
+select,input{width:100%;padding:10px;border:1px solid var(--line);border-radius:6px;font:inherit}
+select:focus,input:focus,button:focus-visible{outline:3px solid var(--acc2);outline-offset:1px}
+button{margin-top:18px;width:100%;padding:12px;border:0;border-radius:6px;background:var(--acc);color:#fff;font:700 1rem inherit;cursor:pointer}
+button.sec{background:var(--ink);width:auto;padding:10px 16px;margin-top:0}
+.hide{display:none}
+.erro{background:#fde8e6;color:#8a1f14;padding:10px;border-radius:6px;margin-top:12px}
+.linha{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--line)}
+.desc{color:#8a1f14}
+.total{display:flex;justify-content:space-between;align-items:baseline;margin-top:10px;padding:12px;background:var(--ink);color:#fff;border-radius:8px}
+.total strong{font:700 1.7rem Georgia,serif;color:var(--acc2)}
+.taxa{margin-top:16px;padding:12px;border-left:4px solid var(--acc2);background:#fbf5e6}
+.vazio{color:var(--mut)}
+.scroll{overflow-x:auto;margin-top:8px}
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right}
+th:first-child,td:first-child{text-align:left}
+th{background:var(--bg)}
+.barra{display:flex;justify-content:space-between;align-items:center;margin-top:20px}
+</style>
+</head>
+<body>
+<header><h1>RentSmart</h1><p>Orçamento de locação · R.M Imóveis</p></header>
+<main>
+<section>
+  <h2>Dados da locação</h2>
+  <label for="tipo">Tipo de imóvel</label>
+  <select id="tipo">
+    <option value="apartamento">Apartamento</option>
+    <option value="casa">Casa</option>
+    <option value="estudio">Estúdio</option>
+  </select>
+  <div id="g-quartos"><label for="quartos">Quartos</label>
+    <select id="quartos"><option value="1">1 quarto</option><option value="2">2 quartos</option></select></div>
+  <div id="g-garagem"><label for="garagem">Vaga de garagem</label>
+    <select id="garagem"><option value="0">Não</option><option value="1">Sim (+ R$ 300,00)</option></select></div>
+  <div id="g-vagas" class="hide"><label for="vagas">Vagas (0, ou 2 ou mais)</label>
+    <input id="vagas" type="number" min="0" value="0"></div>
+  <div id="g-criancas"><label for="criancas">Possui crianças?</label>
+    <select id="criancas"><option value="1">Sim</option><option value="0">Não (5% de desconto)</option></select></div>
+  <label for="parcelas">Parcelas da taxa contratual</label>
+  <select id="parcelas"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
+  <button id="calc">Calcular orçamento</button>
+  <div id="erro" class="erro hide" role="alert"></div>
+</section>
+<section id="saida" aria-live="polite">
+  <h2>Orçamento</h2>
+  <p class="vazio">Preencha os dados ao lado e clique em “Calcular orçamento”.</p>
+</section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let csvAtual = "";
+
+function ajustarCampos() {
+  const t = $("tipo").value;
+  $("g-quartos").classList.toggle("hide", t === "estudio");
+  $("g-garagem").classList.toggle("hide", t === "estudio");
+  $("g-vagas").classList.toggle("hide", t !== "estudio");
+  $("g-criancas").classList.toggle("hide", t !== "apartamento");
+}
+$("tipo").addEventListener("change", ajustarCampos);
+ajustarCampos();
+
+$("calc").addEventListener("click", async () => {
+  $("erro").classList.add("hide");
+  const corpo = {
+    tipo: $("tipo").value,
+    quartos: $("quartos").value,
+    garagem: $("garagem").value === "1",
+    criancas: $("criancas").value === "1",
+    vagas: $("vagas").value,
+    parcelas: $("parcelas").value
+  };
+  try {
+    const r = await fetch("/api/orcamento", {method: "POST", body: JSON.stringify(corpo)});
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.erro);
+    mostrar(d);
+  } catch (e) {
+    $("erro").textContent = e.message || "Não foi possível calcular.";
+    $("erro").classList.remove("hide");
+  }
+});
+
+function mostrar(d) {
+  csvAtual = d.csv;
+  const itens = d.itens.map(([n, v]) => `<div class="linha"><span>${n}</span><span>R$ ${v}</span></div>`).join("");
+  const desc = d.desconto ? `<div class="linha desc"><span>${d.desconto[0]}</span><span>− R$ ${d.desconto[1]}</span></div>` : "";
+  const linhas = d.projecao.map(l => `<tr>${l.map((c, i) => `<td>${i ? "R$ " : ""}${c}</td>`).join("")}</tr>`).join("");
+  $("saida").innerHTML = `
+    <h2>Orçamento</h2><p>${d.descricao}</p>
+    ${itens}<div class="linha"><strong>Subtotal</strong><strong>R$ ${d.subtotal}</strong></div>${desc}
+    <div class="total"><span>Aluguel mensal</span><strong>R$ ${d.aluguel_mensal}</strong></div>
+    <div class="taxa"><strong>Taxa contratual (cobrada à parte)</strong><br>
+      R$ ${d.taxa_total} em ${d.taxa_parcelas}x de R$ ${d.taxa_parcela}</div>
+    <div class="barra"><h2>Projeção dos 12 meses</h2><button class="sec" id="baixar">Baixar CSV</button></div>
+    <div class="scroll"><table><thead><tr><th>Mês</th><th>Aluguel</th><th>Taxa</th><th>Total</th><th>Acumulado</th></tr></thead>
+    <tbody>${linhas}</tbody></table></div>`;
+  $("baixar").addEventListener("click", () => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob(["\ufeff" + csvAtual], {type: "text/csv"}));
+    a.download = "projecao_12_meses.csv";
+    a.click();
+  });
+}
+</script>
+</body>
+</html>
